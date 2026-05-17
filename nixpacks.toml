@@ -4,10 +4,9 @@ nixPkgs = [
   "chromium",
   "nss",
   "freetype",
-  "freetype.dev",
   "harfbuzz",
-  "ca-certificates",
-  "ttf-dejavu"
+  "cacert",
+  "dejavu_fonts"
 ]
 
 [phases.build]
