@@ -13,7 +13,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install npm deps without triggering postinstall (playwright runs separately)
-RUN npm ci --only=production --ignore-scripts
+RUN npm install --omit=dev --ignore-scripts
 
 # Install Playwright Chromium + all Linux system deps via apt-get
 RUN npx playwright install chromium --with-deps
