@@ -1,0 +1,35 @@
+{
+  "name": "rdvprefecturefacile-backend",
+  "version": "1.0.0",
+  "description": "Backend — moteur d'alertes RDVPrefectureFacile.fr",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "scraper": "node src/scheduler.js",
+    "setup-db": "node src/database.js --setup"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "stripe": "^14.21.0",
+    "twilio": "^4.19.3",
+    "@sendgrid/mail": "^8.1.0",
+    "playwright": "^1.40.0",
+    "node-cron": "^3.0.3",
+    "@supabase/supabase-js": "^2.39.0",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "uuid": "^9.0.1",
+    "axios": "^1.6.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
