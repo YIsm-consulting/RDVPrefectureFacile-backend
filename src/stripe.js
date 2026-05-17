@@ -1,8 +1,14 @@
 const Stripe = require('stripe');
 
-const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+let stripe = null;
+if (process.env.STRIPE_SECRET_KEY) {
+  stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+} else {
+  console.warn('[STRIPE] STRIPE_SECRET_KEY manquant — paiements désactivés');
+}
 
 async function createCheckoutSession({ userId, email, successUrl, cancelUrl }) {
+  if (!stripe) throw new Error('Stripe non configuré — ajoutez STRIPE_SECRET_KEY dans les variables Railway');
   const session = await stripe.checkout.sessions.create({
     mode:               'subscription',
     payment_method_types: ['card'],
@@ -22,6 +28,7 @@ async function createCheckoutSession({ userId, email, successUrl, cancelUrl }) {
 }
 
 async function createCustomerPortalSession(stripeCustomerId) {
+  if (!stripe) throw new Error('Stripe non configuré');
   const session = await stripe.billingPortal.sessions.create({
     customer:   stripeCustomerId,
     return_url: `${process.env.FRONTEND_URL}/tableau-de-bord`
@@ -31,6 +38,7 @@ async function createCustomerPortalSession(stripeCustomerId) {
 }
 
 async function cancelSubscription(stripeSubscriptionId) {
+  if (!stripe) throw new Error('Stripe non configuré');
   const subscription = await stripe.subscriptions.update(stripeSubscriptionId, {
     cancel_at_period_end: true
   });
@@ -39,6 +47,7 @@ async function cancelSubscription(stripeSubscriptionId) {
 }
 
 async function constructWebhookEvent(payload, signature) {
+  if (!stripe) throw new Error('Stripe non configuré');
   return stripe.webhooks.constructEvent(
     payload,
     signature,
@@ -47,10 +56,12 @@ async function constructWebhookEvent(payload, signature) {
 }
 
 async function getSubscription(stripeSubscriptionId) {
+  if (!stripe) throw new Error('Stripe non configuré');
   return stripe.subscriptions.retrieve(stripeSubscriptionId);
 }
 
 async function getCustomer(stripeCustomerId) {
+  if (!stripe) throw new Error('Stripe non configuré');
   return stripe.customers.retrieve(stripeCustomerId);
 }
 
