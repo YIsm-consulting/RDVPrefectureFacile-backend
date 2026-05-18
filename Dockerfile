@@ -21,6 +21,4 @@ RUN npx playwright install chromium --with-deps
 # Copy application source
 COPY . .
 
-EXPOSE 3000
-
 CMD ["node", "server.js"]
