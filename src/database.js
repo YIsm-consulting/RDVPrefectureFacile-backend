@@ -1,9 +1,12 @@
 const { createClient } = require('@supabase/supabase-js');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+let supabase;
+if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
+  supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+} else {
+  console.warn('[DB] SUPABASE_URL ou SUPABASE_SERVICE_KEY manquant — base de données désactivée');
+  supabase = null;
+}
 
 /* ── Schéma SQL à exécuter une seule fois dans Supabase ──
    Copiez ce SQL dans l'éditeur SQL de Supabase (supabase.com → SQL Editor)
@@ -63,32 +66,37 @@ CREATE INDEX idx_notifications_alert ON notifications(alert_id);
 
 ── */
 
+function db() {
+  if (!supabase) throw new Error('Base de données non configurée — ajoutez SUPABASE_URL et SUPABASE_SERVICE_KEY dans Railway');
+  return supabase;
+}
+
 module.exports = {
   supabase,
 
   async getUserById(id) {
-    const { data, error } = await supabase
+    const { data, error } = await db()
       .from('users').select('*').eq('id', id).single();
     if (error) throw error;
     return data;
   },
 
   async getUserByEmail(email) {
-    const { data, error } = await supabase
+    const { data, error } = await db()
       .from('users').select('*').eq('email', email).single();
     if (error && error.code !== 'PGRST116') throw error;
     return data;
   },
 
   async createUser(userData) {
-    const { data, error } = await supabase
+    const { data, error } = await db()
       .from('users').insert(userData).select().single();
     if (error) throw error;
     return data;
   },
 
   async updateUser(id, updates) {
-    const { data, error } = await supabase
+    const { data, error } = await db()
       .from('users').update({ ...updates, updated_at: new Date() })
       .eq('id', id).select().single();
     if (error) throw error;
@@ -96,7 +104,7 @@ module.exports = {
   },
 
   async getActiveAlerts() {
-    const { data, error } = await supabase
+    const { data, error } = await db()
       .from('alerts')
       .select('*, users(email, phone, first_name)')
       .eq('active', true)
@@ -106,39 +114,39 @@ module.exports = {
   },
 
   async getAlertsByUser(userId) {
-    const { data, error } = await supabase
+    const { data, error } = await db()
       .from('alerts').select('*').eq('user_id', userId);
     if (error) throw error;
     return data || [];
   },
 
   async createAlert(alertData) {
-    const { data, error } = await supabase
+    const { data, error } = await db()
       .from('alerts').insert(alertData).select().single();
     if (error) throw error;
     return data;
   },
 
   async updateAlertChecked(alertId) {
-    const { error } = await supabase
+    const { error } = await db()
       .from('alerts').update({ last_checked: new Date() }).eq('id', alertId);
     if (error) throw error;
   },
 
   async deactivateAlert(alertId, userId) {
-    const { error } = await supabase
+    const { error } = await db()
       .from('alerts').update({ active: false })
       .eq('id', alertId).eq('user_id', userId);
     if (error) throw error;
   },
 
   async logNotification(data) {
-    const { error } = await supabase.from('notifications').insert(data);
+    const { error } = await db().from('notifications').insert(data);
     if (error) console.error('[DB] Erreur log notification:', error);
   },
 
   async getSubscription(userId) {
-    const { data, error } = await supabase
+    const { data, error } = await db()
       .from('subscriptions').select('*').eq('user_id', userId)
       .eq('status', 'active').single();
     if (error && error.code !== 'PGRST116') throw error;
@@ -146,7 +154,7 @@ module.exports = {
   },
 
   async upsertSubscription(subData) {
-    const { data, error } = await supabase
+    const { data, error } = await db()
       .from('subscriptions')
       .upsert(subData, { onConflict: 'stripe_subscription_id' })
       .select().single();
@@ -155,11 +163,12 @@ module.exports = {
   },
 
   async getStats() {
+    const client = db();
     const [users, alerts, notifications, subs] = await Promise.all([
-      supabase.from('users').select('id', { count: 'exact', head: true }),
-      supabase.from('alerts').select('id', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('notifications').select('id', { count: 'exact', head: true }),
-      supabase.from('subscriptions').select('id', { count: 'exact', head: true }).eq('status', 'active')
+      client.from('users').select('id', { count: 'exact', head: true }),
+      client.from('alerts').select('id', { count: 'exact', head: true }).eq('active', true),
+      client.from('notifications').select('id', { count: 'exact', head: true }),
+      client.from('subscriptions').select('id', { count: 'exact', head: true }).eq('status', 'active')
     ]);
     return {
       totalUsers:         users.count || 0,
