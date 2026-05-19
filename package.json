@@ -20,7 +20,7 @@
     "@sendgrid/mail": "^8.1.0",
     "playwright": "^1.40.0",
     "node-cron": "^3.0.3",
-    "@supabase/supabase-js": "^2.49.0",
+    "@supabase/supabase-js": "2.39.0",
     "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
     "uuid": "^9.0.1",
