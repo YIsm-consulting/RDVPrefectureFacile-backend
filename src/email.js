@@ -115,4 +115,33 @@ async function sendWelcomeEmail({ to, firstName }) {
   return response;
 }
 
-module.exports = { sendAlertEmail, sendWelcomeEmail };
+async function sendResetEmail({ to, firstName, resetUrl }) {
+  const msg = {
+    to,
+    from: { email: process.env.SENDGRID_FROM_EMAIL, name: 'RDVPrefectureFacile' },
+    subject: 'Réinitialisation de votre mot de passe',
+    text: `Bonjour ${firstName || ''},\n\nCliquez sur ce lien pour réinitialiser votre mot de passe (valable 1h) :\n${resetUrl}\n\nSi vous n'avez pas demandé cette réinitialisation, ignorez cet email.\n\n— RDVPrefectureFacile.fr`,
+    html: `<!DOCTYPE html><html lang="fr"><body style="font-family:Inter,Arial,sans-serif;background:#f4f6f9;padding:40px;">
+      <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;">
+        <div style="background:#1B4FD8;padding:32px;text-align:center;">
+          <h1 style="color:#fff;margin:0;">Réinitialisation du mot de passe</h1>
+        </div>
+        <div style="padding:40px;">
+          <p>Bonjour ${firstName || ''},</p>
+          <p>Vous avez demandé à réinitialiser votre mot de passe. Cliquez sur le bouton ci-dessous (lien valable <strong>1 heure</strong>) :</p>
+          <div style="text-align:center;margin:32px 0;">
+            <a href="${resetUrl}" style="background:#1B4FD8;color:#fff;padding:16px 32px;border-radius:8px;text-decoration:none;font-weight:700;">
+              Réinitialiser mon mot de passe
+            </a>
+          </div>
+          <p style="color:#6B7280;font-size:0.85rem;">Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>
+        </div>
+      </div>
+    </body></html>`
+  };
+  const [response] = await sgMail.send(msg);
+  console.log(`[EMAIL] Reset envoyé à ${to}`);
+  return response;
+}
+
+module.exports = { sendAlertEmail, sendWelcomeEmail, sendResetEmail };

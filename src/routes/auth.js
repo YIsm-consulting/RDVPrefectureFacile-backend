@@ -175,4 +175,57 @@ router.put('/password', authenticate, async (req, res) => {
   }
 });
 
+/* POST /api/auth/forgot-password */
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email requis.' });
+
+    const user = await db.getUserByEmail(email);
+    if (!user) return res.json({ message: 'Si cet email existe, un lien de réinitialisation a été envoyé.' });
+
+    const resetToken = jwt.sign(
+      { userId: user.id, email: user.email, type: 'password-reset' },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const resetUrl = `${process.env.FRONTEND_URL}/reinitialiser-mot-de-passe.html?token=${resetToken}`;
+
+    const { sendResetEmail } = require('../email');
+    await sendResetEmail({ to: email, firstName: user.first_name, resetUrl });
+
+    res.json({ message: 'Si cet email existe, un lien de réinitialisation a été envoyé.' });
+  } catch (err) {
+    console.error('[AUTH] Forgot password:', err.message);
+    res.status(500).json({ error: 'Erreur lors de l\'envoi.' });
+  }
+});
+
+/* POST /api/auth/reset-password */
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, new_password } = req.body;
+    if (!token || !new_password) return res.status(400).json({ error: 'Token et mot de passe requis.' });
+    if (new_password.length < 8) return res.status(400).json({ error: 'Mot de passe trop court (min 8 caractères).' });
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return res.status(400).json({ error: 'Lien invalide ou expiré.' });
+    }
+
+    if (decoded.type !== 'password-reset') return res.status(400).json({ error: 'Token invalide.' });
+
+    const password_hash = await bcrypt.hash(new_password, 12);
+    await db.updateUser(decoded.userId, { password_hash });
+
+    res.json({ message: 'Mot de passe réinitialisé avec succès.' });
+  } catch (err) {
+    console.error('[AUTH] Reset password:', err.message);
+    res.status(500).json({ error: 'Erreur lors de la réinitialisation.' });
+  }
+});
+
 module.exports = { router, authenticate };
