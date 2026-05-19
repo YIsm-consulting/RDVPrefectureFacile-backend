@@ -3,29 +3,48 @@ const { runScan } = require('./scraper');
 
 const INTERVAL_SECONDS = parseInt(process.env.SCRAPER_INTERVAL_SECONDS) || 45;
 
+const stats = {
+  lastScanAt:       null,
+  lastScanDuration: null,
+  lastAlertCount:   0,
+  lastSlotsFound:   0,
+  totalScans:       0,
+  running:          false
+};
+
+async function runScanWithStats() {
+  if (stats.running) return;
+  stats.running = true;
+  const start = Date.now();
+  try {
+    const result = await runScan();
+    stats.lastScanAt       = new Date().toISOString();
+    stats.lastScanDuration = Date.now() - start;
+    stats.lastAlertCount   = result?.alertCount  || 0;
+    stats.lastSlotsFound   = result?.slotsFound  || 0;
+    stats.totalScans++;
+  } catch (err) {
+    console.error('[SCHEDULER] Erreur pendant le scan:', err.message);
+  } finally {
+    stats.running = false;
+  }
+}
+
 const scheduler = {
   task: null,
 
   start() {
-    /* node-cron supporte 6 champs : seconde minute heure jour mois joursemaine */
     const expression = `*/${INTERVAL_SECONDS} * * * * *`;
     console.log(`[SCHEDULER] Cron démarré : toutes les ${INTERVAL_SECONDS} secondes`);
 
-    this.task = cron.schedule(expression, async () => {
-      try {
-        await runScan();
-      } catch (err) {
-        console.error('[SCHEDULER] Erreur pendant le scan:', err.message);
-      }
-    }, {
+    this.task = cron.schedule(expression, runScanWithStats, {
       scheduled: true,
       timezone:  'Europe/Paris'
     });
 
-    /* Premier scan immédiat au démarrage */
-    setTimeout(async () => {
+    setTimeout(() => {
       console.log('[SCHEDULER] Premier scan au démarrage...');
-      try { await runScan(); } catch (err) { console.error(err.message); }
+      runScanWithStats();
     }, 10000);
   },
 
@@ -37,4 +56,11 @@ const scheduler = {
   }
 };
 
-module.exports = { scheduler };
+function getSchedulerStats() {
+  return {
+    ...stats,
+    intervalSeconds: INTERVAL_SECONDS
+  };
+}
+
+module.exports = { scheduler, getSchedulerStats, runScanWithStats };

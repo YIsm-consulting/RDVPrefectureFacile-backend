@@ -148,4 +148,151 @@ router.delete('/alerts/:id', authenticateAdmin, async (req, res) => {
   }
 });
 
+/* DELETE /api/admin/users/:id */
+router.delete('/users/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { supabase } = require('../database');
+    const { error } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', req.params.id);
+
+    if (error) throw error;
+    res.json({ message: 'Utilisateur supprimé.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+/* GET /api/admin/cron-status */
+router.get('/cron-status', authenticateAdmin, (req, res) => {
+  try {
+    const { getSchedulerStats } = require('../scheduler');
+    res.json(getSchedulerStats());
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+/* POST /api/admin/trigger-scan */
+router.post('/trigger-scan', authenticateAdmin, async (req, res) => {
+  try {
+    const { runScanWithStats } = require('../scheduler');
+    runScanWithStats(); // fire and forget
+    res.json({ message: 'Scan lancé.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur.' });
+  }
+});
+
+/* POST /api/admin/create-test-data */
+router.post('/create-test-data', authenticateAdmin, async (req, res) => {
+  try {
+    const { supabase } = require('../database');
+    const bcrypt = require('bcryptjs');
+
+    const testEmail = 'test@rdvprefecturefacile.fr';
+    const testPassword = 'Test1234!';
+
+    /* Remove existing test user */
+    await supabase.from('users').delete().eq('email', testEmail);
+
+    const hash = await bcrypt.hash(testPassword, 12);
+    const { data: user, error: uErr } = await supabase
+      .from('users')
+      .insert({
+        email:          testEmail,
+        password_hash:  hash,
+        first_name:     'Test',
+        last_name:      'Robot',
+        phone:          null,
+        role:           'user'
+      })
+      .select().single();
+
+    if (uErr) throw uErr;
+
+    /* Fake active subscription */
+    await supabase.from('subscriptions').insert({
+      user_id:               user.id,
+      stripe_subscription_id: `sub_test_${Date.now()}`,
+      stripe_price_id:        'price_test',
+      status:                 'active',
+      current_period_end:     new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString()
+    });
+
+    /* Test alerts for main prefectures */
+    const testAlerts = [
+      { prefecture: 'Paris (75)',    demarche: 'Titre de séjour - renouvellement' },
+      { prefecture: 'Lyon (69)',     demarche: 'Naturalisation' },
+      { prefecture: 'Marseille (13)', demarche: 'Carte de résident 10 ans' }
+    ];
+
+    for (const a of testAlerts) {
+      await supabase.from('alerts').insert({
+        user_id:        user.id,
+        prefecture:     a.prefecture,
+        prefecture_url: '',
+        demarche:       a.demarche,
+        active:         true
+      });
+    }
+
+    res.json({
+      message: 'Compte test créé avec succès.',
+      credentials: { email: testEmail, password: testPassword },
+      userId: user.id
+    });
+  } catch (err) {
+    console.error('[ADMIN] create-test-data:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* POST /api/admin/test-notification */
+router.post('/test-notification', authenticateAdmin, async (req, res) => {
+  try {
+    const { supabase } = require('../database');
+    const { sendAlertEmail } = require('../email');
+    const { sendSMS } = require('../sms');
+
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId requis.' });
+
+    const { data: user, error } = await supabase
+      .from('users').select('*').eq('id', userId).single();
+    if (error || !user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+
+    const fakeAlert = {
+      prefecture: 'Paris (75)',
+      demarche:   'Titre de séjour - renouvellement',
+      slotText:   'Lundi 2 juin 2025 à 09h30',
+      slotUrl:    'https://www.rdvprefecturefacile.fr'
+    };
+
+    const promises = [];
+
+    if (user.phone) {
+      const msg = `🟢 TEST — Créneau disponible !\n📍 ${fakeAlert.prefecture}\n📋 ${fakeAlert.demarche}\n🗓️ ${fakeAlert.slotText}\n→ ${fakeAlert.slotUrl}\n— RDVPrefectureFacile.fr`;
+      promises.push(sendSMS(user.phone, msg).catch(e => ({ smsError: e.message })));
+    }
+
+    if (user.email) {
+      promises.push(sendAlertEmail({
+        to:         user.email,
+        firstName:  user.first_name,
+        prefecture: fakeAlert.prefecture,
+        demarche:   fakeAlert.demarche,
+        slotText:   fakeAlert.slotText,
+        slotUrl:    fakeAlert.slotUrl
+      }).catch(e => ({ emailError: e.message })));
+    }
+
+    const results = await Promise.allSettled(promises);
+    res.json({ message: 'Notification test envoyée.', results: results.map(r => r.value || r.reason?.message) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

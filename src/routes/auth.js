@@ -228,4 +228,46 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+/* POST /api/auth/setup-admin
+   Clé maître : rdv-admin-init-2025
+   Crée ou met à jour un compte admin avec l'email et le mot de passe fournis.
+   Ne fonctionne qu'avec la clé maître. */
+router.post('/setup-admin', async (req, res) => {
+  const { master_key, email, password } = req.body;
+
+  if (master_key !== 'rdv-admin-init-2025') {
+    return res.status(403).json({ error: 'Clé invalide.' });
+  }
+  if (!email || !password || password.length < 8) {
+    return res.status(400).json({ error: 'Email et mot de passe (min 8 car.) requis.' });
+  }
+
+  try {
+    const { supabase } = require('../database');
+    const password_hash = await bcrypt.hash(password, 12);
+
+    let user = await db.getUserByEmail(email);
+
+    if (user) {
+      await supabase.from('users')
+        .update({ password_hash, role: 'admin', updated_at: new Date() })
+        .eq('id', user.id);
+      return res.json({ message: 'Mot de passe admin mis à jour.', email });
+    }
+
+    await supabase.from('users').insert({
+      email,
+      password_hash,
+      first_name: 'Admin',
+      last_name:  'RDV',
+      role:       'admin'
+    });
+
+    res.json({ message: 'Compte admin créé.', email });
+  } catch (err) {
+    console.error('[AUTH] setup-admin:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = { router, authenticate };

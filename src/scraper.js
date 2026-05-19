@@ -166,6 +166,8 @@ async function runScan() {
     chunks.push(alerts.slice(i, i + maxConcurrent));
   }
 
+  let slotsFound = 0;
+
   for (const chunk of chunks) {
     const results = await Promise.allSettled(
       chunk.map(alert => checkPrefecture(alert))
@@ -174,15 +176,16 @@ async function runScan() {
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
       if (result.status === 'fulfilled' && result.value.found) {
+        slotsFound += result.value.slots?.length || 0;
         await notifyUser(chunk[i], result.value);
       }
     }
 
-    /* Pause entre les batches pour ne pas surcharger */
     if (chunks.length > 1) await new Promise(r => setTimeout(r, 2000));
   }
 
   console.log(`[SCRAPER] ✅ Scan terminé — ${new Date().toLocaleTimeString('fr-FR')}`);
+  return { alertCount: alerts.length, slotsFound };
 }
 
 module.exports = { runScan, checkPrefecture };
