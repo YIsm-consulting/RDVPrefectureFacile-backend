@@ -70,8 +70,8 @@ async function sendAlertEmail({ to, firstName, prefecture, demarche, slotText, s
   const msg = {
     to,
     from: {
-      email: process.env.FROM_EMAIL,
-      name:  process.env.FROM_NAME || 'RDVPrefectureFacile'
+      email: process.env.SENDGRID_FROM_EMAIL,
+      name:  'RDVPrefectureFacile'
     },
     subject:  `🟢 Créneau disponible — ${prefecture} (${demarche})`,
     text:     `Bonjour ${firstName || ''},\n\nUn créneau est disponible !\n\n📍 ${prefecture}\n📋 ${demarche}\n🗓️ ${slotText}\n\n→ Réservez : ${slotUrl}\n\n— RDVPrefectureFacile.fr`,
@@ -87,8 +87,8 @@ async function sendWelcomeEmail({ to, firstName }) {
   const msg = {
     to,
     from: {
-      email: process.env.FROM_EMAIL,
-      name:  process.env.FROM_NAME || 'RDVPrefectureFacile'
+      email: process.env.SENDGRID_FROM_EMAIL,
+      name:  'RDVPrefectureFacile'
     },
     subject: 'Bienvenue sur RDVPrefectureFacile.fr 🎉',
     text:    `Bonjour ${firstName || ''},\n\nVotre compte est activé. Créez votre première alerte depuis votre tableau de bord.\n\nhttps://rdvprefecturefacile.fr/tableau-de-bord\n\n— L'équipe RDVPrefectureFacile`,
