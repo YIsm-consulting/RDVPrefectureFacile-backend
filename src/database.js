@@ -1,8 +1,11 @@
 const { createClient } = require('@supabase/supabase-js');
+const ws = require('ws');
 
 let supabase;
 if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
-  supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+  supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, {
+    realtime: { transport: ws }
+  });
 } else {
   console.warn('[DB] SUPABASE_URL ou SUPABASE_SERVICE_KEY manquant — base de données désactivée');
   supabase = null;
