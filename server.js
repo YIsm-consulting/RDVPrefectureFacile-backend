@@ -71,7 +71,7 @@ app.listen(PORT, () => {
   console.log(`✅ API démarrée sur le port ${PORT}`);
   console.log(`🌍 Environnement : ${process.env.NODE_ENV}`);
   scheduler.start();
-  console.log(`🤖 Robot de surveillance démarré (toutes les ${process.env.SCRAPER_INTERVAL_MINUTES || 2} min)`);
+  console.log(`🤖 Robot de surveillance démarré (toutes les ${process.env.SCRAPER_INTERVAL_SECONDS || 45} sec)`);
 });
 
 module.exports = app;
