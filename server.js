@@ -15,8 +15,21 @@ const PORT = process.env.PORT || 3000;
 
 /* ── Sécurité ── */
 app.use(helmet());
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://www.rdvprefecturefacile.fr',
+  'https://rdvprefecturefacile.fr',
+  'http://localhost:3000',
+  /\.vercel\.app$/
+];
 app.use(cors({
-  origin: [process.env.FRONTEND_URL, 'http://localhost:3000'],
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    const ok = allowedOrigins.some(o =>
+      o instanceof RegExp ? o.test(origin) : o === origin
+    );
+    cb(ok ? null : new Error('CORS'), ok);
+  },
   credentials: true
 }));
 
