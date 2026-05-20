@@ -9,6 +9,7 @@ const { router: authRoutes } = require('./src/routes/auth');
 const alertsRoutes            = require('./src/routes/alerts');
 const webhookRoutes           = require('./src/routes/webhooks');
 const adminRoutes             = require('./src/routes/admin');
+const blogRoutes              = require('./src/routes/blog');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -39,7 +40,7 @@ app.use(cors({
 app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }));
 
 /* ── Body parsers ── */
-app.use(express.json({ limit: '10kb' }));
+app.use(express.json({ limit: '200kb' }));
 app.use(express.urlencoded({ extended: true }));
 
 /* ── Rate limiting ── */
@@ -55,6 +56,7 @@ app.use('/api/auth',     authRoutes);
 app.use('/api/alerts',   alertsRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/admin',    adminRoutes);
+app.use('/api/blog',     blogRoutes);
 
 /* ── Health check ── */
 app.get('/health', (req, res) => {

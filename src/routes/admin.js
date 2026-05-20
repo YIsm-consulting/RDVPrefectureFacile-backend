@@ -295,4 +295,131 @@ router.post('/test-notification', authenticateAdmin, async (req, res) => {
   }
 });
 
+/* ────────── BLOG ────────── */
+
+/* GET /api/admin/blog/list */
+router.get('/blog/list', authenticateAdmin, async (req, res) => {
+  try {
+    const { supabase } = require('../database');
+    const { data, error } = await supabase
+      .from('blog_posts')
+      .select('id, slug, title, excerpt, category, status, reading_time, created_at, published_at')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json({ posts: data || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* POST /api/admin/blog/generate */
+router.post('/blog/generate', authenticateAdmin, async (req, res) => {
+  try {
+    const { topic, category = 'Guides pratiques' } = req.body;
+    if (!topic) return res.status(400).json({ error: 'topic requis.' });
+
+    const Anthropic = require('@anthropic-ai/sdk');
+    const { supabase } = require('../database');
+
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const message = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 4096,
+      messages: [{
+        role: 'user',
+        content: `Tu es un expert en démarches administratives françaises (préfectures, titres de séjour, naturalisation).
+
+Écris un article de blog complet et SEO-optimisé pour RDVPrefectureFacile.fr sur le sujet : "${topic}"
+
+Règles :
+- Longueur : 800-1200 mots
+- Ton : professionnel, bienveillant, pratique
+- Structure : h2 et h3 pour structurer, paragraphes courts
+- Inclure des conseils concrets et actionnables
+- Mentionner RDVPrefectureFacile.fr naturellement à la fin comme outil d'alerte automatique
+- Année : 2026
+- Langue : français
+
+Réponds UNIQUEMENT en JSON valide avec exactement ce format (aucun texte avant ou après) :
+{
+  "title": "Le titre complet de l'article",
+  "excerpt": "Un résumé de 1-2 phrases pour la meta description (max 160 caractères)",
+  "slug": "le-slug-url-en-kebab-case-sans-accents",
+  "reading_time": 6,
+  "content": "<h2>...</h2><p>...</p>..."
+}`
+      }]
+    });
+
+    let json;
+    try {
+      const text = message.content[0].text;
+      const match = text.match(/\{[\s\S]*\}/);
+      json = JSON.parse(match ? match[0] : text);
+    } catch {
+      return res.status(500).json({ error: 'Erreur parsing réponse IA.' });
+    }
+
+    let slug = (json.slug || json.title)
+      .toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+    const { data: existing } = await supabase.from('blog_posts').select('slug').eq('slug', slug).single();
+    if (existing) slug = `${slug}-${Date.now()}`;
+
+    const { data: post, error: insertErr } = await supabase
+      .from('blog_posts')
+      .insert({
+        slug,
+        title:        json.title,
+        excerpt:      json.excerpt || '',
+        content:      json.content,
+        category,
+        status:       'draft',
+        reading_time: json.reading_time || 5
+      })
+      .select().single();
+
+    if (insertErr) throw insertErr;
+    res.json({ post });
+  } catch (err) {
+    console.error('[BLOG] generate:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* PUT /api/admin/blog/publish/:id */
+router.put('/blog/publish/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { supabase } = require('../database');
+    const { status } = req.body;
+    const { data, error } = await supabase
+      .from('blog_posts')
+      .update({
+        status,
+        published_at: status === 'published' ? new Date().toISOString() : null
+      })
+      .eq('id', req.params.id)
+      .select().single();
+    if (error) throw error;
+    res.json({ post: data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* DELETE /api/admin/blog/:id */
+router.delete('/blog/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { supabase } = require('../database');
+    const { error } = await supabase.from('blog_posts').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ message: 'Article supprimé.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
