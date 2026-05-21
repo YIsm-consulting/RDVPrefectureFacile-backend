@@ -1,27 +1,35 @@
-const twilio = require('twilio');
+const axios = require('axios');
 
-let client = null;
-if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-  client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-} else {
-  console.warn('[TWILIO] Credentials manquants — SMS désactivés');
+if (!process.env.BREVO_API_KEY) {
+  console.warn('[BREVO] BREVO_API_KEY manquant — SMS désactivés');
 }
 
 async function sendSMS(to, message) {
-  if (!client) {
-    console.warn('[SMS] Client Twilio non initialisé — SMS non envoyé');
+  if (!process.env.BREVO_API_KEY) {
+    console.warn('[SMS] Brevo non configuré — SMS non envoyé');
     return null;
   }
-  const formatted = to.startsWith('+') ? to : `+33${to.replace(/^0/, '')}`;
 
-  const result = await client.messages.create({
-    body: message,
-    from: process.env.TWILIO_PHONE_NUMBER,
-    to:   formatted
-  });
+  const recipient = to.startsWith('+') ? to : `+33${to.replace(/^0/, '')}`;
 
-  console.log(`[SMS] Envoyé à ${formatted} — SID: ${result.sid}`);
-  return result;
+  const result = await axios.post(
+    'https://api.brevo.com/v3/transactionalSMS/sms',
+    {
+      sender:    'RDVPrefect',
+      recipient,
+      content:   message,
+      type:      'transactional'
+    },
+    {
+      headers: {
+        'api-key':      process.env.BREVO_API_KEY,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+
+  console.log(`[SMS] Envoyé à ${recipient} — messageId: ${result.data.messageId}`);
+  return result.data;
 }
 
 module.exports = { sendSMS };
