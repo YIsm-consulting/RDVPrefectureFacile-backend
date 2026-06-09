@@ -206,6 +206,37 @@ const scheduler = {
       console.log('[SCHEDULER] Premier scan au démarrage...');
       runScanWithStats();
     }, 10000);
+
+    /* Rattrapage blog au démarrage : si aucun article aujourd'hui et jour éligible → générer */
+    setTimeout(async () => {
+      try {
+        const { supabase } = require('./database');
+        const today     = new Date().toISOString().slice(0, 10);
+        const dayOfWeek = new Date().getDay(); // 1=lun, 3=mer, 5=ven
+
+        const daysSinceStart = Math.floor((Date.now() - BLOG_START_DATE.getTime()) / 86400000);
+        const isPhase2       = daysSinceStart >= 91;
+
+        const eligible = isPhase2 ? dayOfWeek === 1 : [1, 3, 5].includes(dayOfWeek);
+        if (!eligible) return;
+
+        const { data } = await supabase
+          .from('blog_posts')
+          .select('id')
+          .gte('created_at', today + 'T00:00:00.000Z')
+          .limit(1);
+
+        if (data && data.length > 0) {
+          console.log('[BLOG-CRON] Article déjà publié aujourd\'hui — rattrapage ignoré.');
+          return;
+        }
+
+        console.log('[BLOG-CRON] Rattrapage au démarrage — génération d\'un article…');
+        await runBlogCron();
+      } catch (err) {
+        console.error('[BLOG-CRON] Erreur rattrapage:', err.message);
+      }
+    }, 30000);
   },
 
   stop() {
