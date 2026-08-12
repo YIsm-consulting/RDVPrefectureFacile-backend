@@ -404,6 +404,12 @@ router.put('/blog/publish/:id', authenticateAdmin, async (req, res) => {
       .eq('id', req.params.id)
       .select().single();
     if (error) throw error;
+
+    if (data.status === 'published') {
+      const { publishStaticArticle } = require('../blogStatic');
+      await publishStaticArticle(data);
+    }
+
     res.json({ post: data });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -3,10 +3,7 @@ const { runScan } = require('./scraper');
 
 const INTERVAL_SECONDS = parseInt(process.env.SCRAPER_INTERVAL_SECONDS) || 45;
 
-/* Date de démarrage du blog automatisé (env BLOG_START_DATE ou aujourd'hui) */
-const BLOG_START_DATE = new Date(process.env.BLOG_START_DATE || '2026-05-21');
-
-/* Liste de sujets SEO — couvre ~50 semaines */
+/* Liste de sujets SEO — couvre ~50 semaines, puis recyclée avec un angle "mise à jour" */
 const BLOG_TOPICS = [
   { topic: "Comment obtenir un récépissé de demande de titre de séjour en 2026", category: "Guides pratiques" },
   { topic: "ANEF : guide complet pour créer son compte et déposer sa demande en ligne", category: "Guides pratiques" },
@@ -89,13 +86,6 @@ async function runScanWithStats() {
 
 async function runBlogCron() {
   try {
-    const daysSinceStart = Math.floor((Date.now() - BLOG_START_DATE.getTime()) / 86400000);
-    const isPhase2       = daysSinceStart >= 91; // 3 mois = phase 2
-    const todayDay       = new Date().getDay();  // 0=dim, 1=lun, 3=mer, 5=ven
-
-    /* Phase 2 : uniquement le lundi */
-    if (isPhase2 && todayDay !== 1) return;
-
     const Anthropic    = require('@anthropic-ai/sdk');
     const { supabase } = require('./database');
 
@@ -103,19 +93,15 @@ async function runBlogCron() {
     const { data: existing } = await supabase.from('blog_posts').select('slug, title');
     const existingCount = existing?.length || 0;
 
-    /* Choisir le prochain sujet */
-    let topicEntry;
-    if (existingCount < BLOG_TOPICS.length) {
-      topicEntry = BLOG_TOPICS[existingCount % BLOG_TOPICS.length];
-    } else {
-      /* Tous les sujets couverts : générer un sujet libre */
-      topicEntry = {
-        topic: `Nouvelles procédures préfecture France — actualités ${new Date().getFullYear()}`,
-        category: 'Actualités 2026'
-      };
-    }
+    /* Choisir le prochain sujet : on boucle sur la liste ; à chaque tour complet,
+       on redemande le même thème avec un angle "mise à jour" pour éviter un contenu identique */
+    const cycle = Math.floor(existingCount / BLOG_TOPICS.length);
+    const base  = BLOG_TOPICS[existingCount % BLOG_TOPICS.length];
+    const topicEntry = cycle === 0
+      ? base
+      : { topic: `${base.topic} — mise à jour ${new Date().getFullYear()}`, category: base.category };
 
-    console.log(`[BLOG-CRON] Génération : "${topicEntry.topic}" (phase ${isPhase2 ? 2 : 1})`);
+    console.log(`[BLOG-CRON] Génération : "${topicEntry.topic}"`);
 
     const client  = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const message = await client.messages.create({
@@ -165,6 +151,8 @@ Réponds UNIQUEMENT en JSON valide (aucun texte avant ou après) :
     const { data: dup } = await supabase.from('blog_posts').select('slug').eq('slug', slug).single();
     if (dup) slug = `${slug}-${Date.now()}`;
 
+    const published_at = new Date().toISOString();
+
     await supabase.from('blog_posts').insert({
       slug,
       title:        json.title,
@@ -173,10 +161,16 @@ Réponds UNIQUEMENT en JSON valide (aucun texte avant ou après) :
       category:     topicEntry.category,
       status:       'published',
       reading_time: json.reading_time || 5,
-      published_at: new Date().toISOString()
+      published_at
     });
 
     console.log(`[BLOG-CRON] Article publié : "${json.title}"`);
+
+    const { publishStaticArticle } = require('./blogStatic');
+    await publishStaticArticle({
+      slug, title: json.title, excerpt: json.excerpt || '', content: json.content,
+      category: topicEntry.category, reading_time: json.reading_time || 5, published_at
+    });
   } catch (err) {
     console.error('[BLOG-CRON] Erreur:', err.message);
   }
@@ -195,12 +189,12 @@ const scheduler = {
       timezone:  'Europe/Paris'
     });
 
-    /* Blog : lun/mer/ven à 9h00 (couvre les 2 phases, filtre interne pour phase 2) */
+    /* Blog : lun/mer/ven à 9h00, en continu */
     this.blogTask = cron.schedule('0 9 * * 1,3,5', runBlogCron, {
       scheduled: true,
       timezone:  'Europe/Paris'
     });
-    console.log('[SCHEDULER] Blog cron démarré : lun/mer/ven 9h00 (phase 1) → lun 9h00 (phase 2 après 3 mois)');
+    console.log('[SCHEDULER] Blog cron démarré : lun/mer/ven 9h00 (3 articles/semaine)');
 
     setTimeout(() => {
       console.log('[SCHEDULER] Premier scan au démarrage...');
@@ -214,11 +208,7 @@ const scheduler = {
         const today     = new Date().toISOString().slice(0, 10);
         const dayOfWeek = new Date().getDay(); // 1=lun, 3=mer, 5=ven
 
-        const daysSinceStart = Math.floor((Date.now() - BLOG_START_DATE.getTime()) / 86400000);
-        const isPhase2       = daysSinceStart >= 91;
-
-        const eligible = isPhase2 ? dayOfWeek === 1 : [1, 3, 5].includes(dayOfWeek);
-        if (!eligible) return;
+        if (![1, 3, 5].includes(dayOfWeek)) return;
 
         const { data } = await supabase
           .from('blog_posts')
