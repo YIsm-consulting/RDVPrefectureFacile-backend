@@ -1,4 +1,15 @@
 require('dotenv').config();
+
+/* Filet de sécurité : une erreur asynchrone imprévue (ex. crash interne de
+   Playwright pendant un scan) ne doit jamais faire tomber toute l'API —
+   webhooks Stripe, panel admin et blog doivent continuer de fonctionner. */
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] uncaughtException (processus maintenu en vie):', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] unhandledRejection (processus maintenu en vie):', reason);
+});
+
 const express      = require('express');
 const cors         = require('cors');
 const helmet       = require('helmet');
