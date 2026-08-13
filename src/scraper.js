@@ -3,6 +3,49 @@ const db            = require('./database');
 const { sendSMS }   = require('./sms');
 const { sendAlertEmail } = require('./email');
 
+/* ── Navigateur partagé ──
+   Lancer un process Chromium complet à chaque vérification (toutes les 45s,
+   par préfecture) est coûteux et instable en mémoire limitée. On garde un
+   seul navigateur ouvert en continu et on crée une context/page isolée par
+   vérification (léger), au lieu de relancer tout le navigateur à chaque fois. */
+let browserInstance = null;
+let launching        = null;
+
+async function getBrowser() {
+  if (browserInstance && browserInstance.isConnected()) return browserInstance;
+  if (launching) return launching;
+
+  launching = chromium.launch({
+    headless: process.env.SCRAPER_HEADLESS !== 'false',
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu'
+    ]
+  }).then(browser => {
+    browserInstance = browser;
+    browserInstance.on('disconnected', () => {
+      console.warn('[SCRAPER] Navigateur déconnecté — relancement au prochain scan.');
+      browserInstance = null;
+    });
+    launching = null;
+    return browser;
+  }).catch(err => {
+    launching = null;
+    throw err;
+  });
+
+  return launching;
+}
+
+async function closeBrowser() {
+  if (browserInstance) {
+    await browserInstance.close().catch(() => {});
+    browserInstance = null;
+  }
+}
+
 /* ── Préfectures connues et leurs URLs de réservation ── */
 const PREFECTURE_CONFIGS = {
   'Paris (75)': {
@@ -38,20 +81,12 @@ async function checkPrefecture(alert) {
     selectors: { available: '.creneau, .slot, .disponible, [class*="available"]' }
   };
 
-  let browser = null;
+  let context = null;
 
   try {
-    browser = await chromium.launch({
-      headless: process.env.SCRAPER_HEADLESS !== 'false',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu'
-      ]
-    });
+    const browser = await getBrowser();
 
-    const context = await browser.newContext({
+    context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       locale: 'fr-FR',
       timezoneId: 'Europe/Paris',
@@ -106,7 +141,7 @@ async function checkPrefecture(alert) {
     console.error(`[SCRAPER] ❌ Erreur pour ${alert.prefecture}:`, err.message);
     return { found: false, error: err.message };
   } finally {
-    if (browser) await browser.close();
+    if (context) await context.close().catch(() => {});
   }
 }
 
@@ -188,4 +223,4 @@ async function runScan() {
   return { alertCount: alerts.length, slotsFound };
 }
 
-module.exports = { runScan, checkPrefecture };
+module.exports = { runScan, checkPrefecture, closeBrowser };

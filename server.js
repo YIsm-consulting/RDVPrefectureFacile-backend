@@ -102,4 +102,12 @@ app.listen(PORT, () => {
   console.log(`🤖 Robot de surveillance démarré (toutes les ${process.env.SCRAPER_INTERVAL_SECONDS || 45} sec)`);
 });
 
+/* Fermer proprement le navigateur partagé du scraper lors d'un redéploiement
+   (Railway envoie SIGTERM), pour éviter tout process Chromium fantôme. */
+process.on('SIGTERM', async () => {
+  const { closeBrowser } = require('./src/scraper');
+  await closeBrowser();
+  process.exit(0);
+});
+
 module.exports = app;
