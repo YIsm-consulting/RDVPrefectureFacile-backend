@@ -1,8 +1,17 @@
-const express = require('express');
-const jwt     = require('jsonwebtoken');
-const db      = require('../database');
+const express   = require('express');
+const jwt       = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
+const db        = require('../database');
 
 const router = express.Router();
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de tentatives, réessayez dans 15 minutes.' }
+});
 
 /* Middleware admin */
 function authenticateAdmin(req, res, next) {
@@ -27,7 +36,7 @@ function authenticateAdmin(req, res, next) {
 }
 
 /* POST /api/admin/login */
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
     const bcrypt = require('bcryptjs');
@@ -369,13 +378,14 @@ Réponds UNIQUEMENT en JSON valide avec exactement ce format (aucun texte avant 
     const { data: existing } = await supabase.from('blog_posts').select('slug').eq('slug', slug).single();
     if (existing) slug = `${slug}-${Date.now()}`;
 
+    const { sanitizeArticleContent } = require('../blogStatic');
     const { data: post, error: insertErr } = await supabase
       .from('blog_posts')
       .insert({
         slug,
         title:        json.title,
         excerpt:      json.excerpt || '',
-        content:      json.content,
+        content:      sanitizeArticleContent(json.content),
         category,
         status:       'draft',
         reading_time: json.reading_time || 5

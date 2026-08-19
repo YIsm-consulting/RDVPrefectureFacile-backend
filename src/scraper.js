@@ -74,12 +74,29 @@ const PREFECTURE_CONFIGS = {
   }
 };
 
+/* N'autoriser la navigation du scraper que vers des domaines officiels
+   gouv.fr, pour empêcher toute requête serveur vers une cible arbitraire
+   (SSRF) même si une prefecture_url invalide arrivait jusqu'ici. */
+function isAllowedScrapeUrl(url) {
+  try {
+    const { protocol, hostname } = new URL(url);
+    return protocol === 'https:' && (hostname === 'gouv.fr' || hostname.endsWith('.gouv.fr'));
+  } catch {
+    return false;
+  }
+}
+
 /* ── Scraper générique pour un site de réservation préfecture ── */
 async function checkPrefecture(alert) {
   const config = PREFECTURE_CONFIGS[alert.prefecture] || {
     url: alert.prefecture_url,
     selectors: { available: '.creneau, .slot, .disponible, [class*="available"]' }
   };
+
+  if (!isAllowedScrapeUrl(config.url)) {
+    console.error(`[SCRAPER] URL refusée (hors gouv.fr) pour ${alert.prefecture}: ${config.url}`);
+    return { found: false, error: 'URL non autorisée.' };
+  }
 
   let context = null;
 

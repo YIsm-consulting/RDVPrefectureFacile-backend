@@ -152,12 +152,14 @@ Réponds UNIQUEMENT en JSON valide (aucun texte avant ou après) :
     if (dup) slug = `${slug}-${Date.now()}`;
 
     const published_at = new Date().toISOString();
+    const { publishStaticArticle, sanitizeArticleContent } = require('./blogStatic');
+    const safeContent = sanitizeArticleContent(json.content);
 
     await supabase.from('blog_posts').insert({
       slug,
       title:        json.title,
       excerpt:      json.excerpt || '',
-      content:      json.content,
+      content:      safeContent,
       category:     topicEntry.category,
       status:       'published',
       reading_time: json.reading_time || 5,
@@ -166,9 +168,8 @@ Réponds UNIQUEMENT en JSON valide (aucun texte avant ou après) :
 
     console.log(`[BLOG-CRON] Article publié : "${json.title}"`);
 
-    const { publishStaticArticle } = require('./blogStatic');
     await publishStaticArticle({
-      slug, title: json.title, excerpt: json.excerpt || '', content: json.content,
+      slug, title: json.title, excerpt: json.excerpt || '', content: safeContent,
       category: topicEntry.category, reading_time: json.reading_time || 5, published_at
     });
   } catch (err) {
