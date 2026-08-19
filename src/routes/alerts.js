@@ -6,6 +6,20 @@ const router = express.Router();
 
 const MAX_ALERTS_PER_USER = 5;
 
+/* prefecture_url est visitée côté serveur par le scraper (navigateur headless) :
+   on limite aux domaines officiels gouv.fr pour empêcher un utilisateur de
+   forcer le serveur à faire des requêtes vers des cibles arbitraires (SSRF). */
+function isAllowedPrefectureUrl(url) {
+  if (!url) return true;
+  try {
+    const { protocol, hostname } = new URL(url);
+    if (protocol !== 'https:') return false;
+    return hostname === 'gouv.fr' || hostname.endsWith('.gouv.fr');
+  } catch {
+    return false;
+  }
+}
+
 /* GET /api/alerts — lister mes alertes */
 router.get('/', authenticate, async (req, res) => {
   try {
@@ -40,6 +54,9 @@ router.post('/', authenticate, async (req, res) => {
 
     if (!prefecture || !demarche) {
       return res.status(400).json({ error: 'Préfecture et démarche requis.' });
+    }
+    if (!isAllowedPrefectureUrl(prefecture_url)) {
+      return res.status(400).json({ error: 'URL de préfecture invalide (domaine gouv.fr requis).' });
     }
 
     const alert = await db.createAlert({

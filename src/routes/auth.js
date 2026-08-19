@@ -1,10 +1,22 @@
-const express  = require('express');
-const bcrypt   = require('bcryptjs');
-const jwt      = require('jsonwebtoken');
-const db       = require('../database');
+const express     = require('express');
+const bcrypt      = require('bcryptjs');
+const jwt         = require('jsonwebtoken');
+const rateLimit   = require('express-rate-limit');
+const db          = require('../database');
 const { sendWelcomeEmail } = require('../email');
 
 const router = express.Router();
+
+/* Limite dédiée sur les routes sensibles (login, register, reset) — le
+   limiteur global (100 req/15min sur toute l'API) est trop permissif pour
+   empêcher le bruteforce/credential stuffing sur un endpoint précis. */
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de tentatives, réessayez dans 15 minutes.' }
+});
 
 function generateToken(userId) {
   return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '30d' });
@@ -28,7 +40,7 @@ function authenticate(req, res, next) {
 }
 
 /* POST /api/auth/register */
-router.post('/register', async (req, res) => {
+router.post('/register', authLimiter, async (req, res) => {
   try {
     const { email, password, first_name, last_name, phone } = req.body;
 
@@ -70,7 +82,7 @@ router.post('/register', async (req, res) => {
 });
 
 /* POST /api/auth/login */
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -176,7 +188,7 @@ router.put('/password', authenticate, async (req, res) => {
 });
 
 /* POST /api/auth/forgot-password */
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', authLimiter, async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email requis.' });
@@ -203,7 +215,7 @@ router.post('/forgot-password', async (req, res) => {
 });
 
 /* POST /api/auth/reset-password */
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', authLimiter, async (req, res) => {
   try {
     const { token, new_password } = req.body;
     if (!token || !new_password) return res.status(400).json({ error: 'Token et mot de passe requis.' });
@@ -229,13 +241,20 @@ router.post('/reset-password', async (req, res) => {
 });
 
 /* POST /api/auth/setup-admin
-   Clé maître : rdv-admin-init-2025
    Crée ou met à jour un compte admin avec l'email et le mot de passe fournis.
-   Ne fonctionne qu'avec la clé maître. */
-router.post('/setup-admin', async (req, res) => {
+   Ne fonctionne que si ADMIN_SETUP_KEY est définie côté serveur (variable
+   d'environnement, jamais commitée) et que la clé fournie correspond
+   exactement — sinon la route est désactivée (404). */
+router.post('/setup-admin', authLimiter, async (req, res) => {
+  const setupKey = process.env.ADMIN_SETUP_KEY;
+  if (!setupKey) {
+    return res.status(404).json({ error: 'Route introuvable.' });
+  }
+
   const { master_key, email, password } = req.body;
 
-  if (master_key !== 'rdv-admin-init-2025') {
+  if (typeof master_key !== 'string' || master_key.length !== setupKey.length ||
+      !require('crypto').timingSafeEqual(Buffer.from(master_key), Buffer.from(setupKey))) {
     return res.status(403).json({ error: 'Clé invalide.' });
   }
   if (!email || !password || password.length < 8) {

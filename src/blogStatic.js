@@ -3,10 +3,25 @@
    meilleur référencement (contenu servi statique, meta/OG/JSON-LD,
    indexation automatique via sitemap dynamique). */
 
+const sanitizeHtml = require('sanitize-html');
+
 const OWNER  = 'YIsm-consulting';
 const REPO   = 'RDVPrefectureFacile';
 const BRANCH = 'master';
 const SITE   = 'https://rdvprefecturefacile.fr';
+
+/* Le contenu des articles est généré par un LLM (voir routes/admin.js et
+   scheduler.js) puis injecté tel quel dans une page publique : on le
+   sanitize avant publication pour ne jamais faire confiance aveuglément à
+   du HTML généré par une IA (tags/scripts/attributs on-event/liens
+   javascript exclus). */
+function sanitizeArticleContent(html = '') {
+  return sanitizeHtml(html, {
+    allowedTags: ['h2', 'h3', 'p', 'ul', 'ol', 'li', 'strong', 'em', 'blockquote', 'a', 'br'],
+    allowedAttributes: { a: ['href'] },
+    allowedSchemes: ['http', 'https', 'mailto']
+  });
+}
 
 function escapeHtml(str = '') {
   return String(str)
@@ -129,7 +144,7 @@ function renderArticleHtml(post) {
 <section class="section">
   <div class="container">
     <div class="article-body">
-      ${post.content}
+      ${sanitizeArticleContent(post.content)}
 
       <div class="article-cta">
         <h3>Ne ratez plus jamais un créneau disponible</h3>
@@ -215,4 +230,4 @@ async function publishStaticArticle(post) {
   }
 }
 
-module.exports = { renderArticleHtml, publishStaticArticle };
+module.exports = { renderArticleHtml, publishStaticArticle, sanitizeArticleContent };
