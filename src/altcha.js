@@ -35,9 +35,6 @@ async function checkAltcha(payload) {
 
 /* Middleware Express : refuse la requête si la preuve est absente ou invalide. */
 function requireAltcha(req, res, next) {
-  /* Transition : tant que le site n'envoie pas encore la preuve, on laisse passer
-     les requêtes sans preuve (une preuve fournie mais invalide est refusée). */
-  if (!(req.body && req.body.altcha)) return next();
   checkAltcha(req.body && req.body.altcha)
     .then((reason) => {
       if (!reason) return next();
