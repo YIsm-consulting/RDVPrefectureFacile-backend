@@ -4,6 +4,7 @@ const jwt         = require('jsonwebtoken');
 const rateLimit   = require('express-rate-limit');
 const db          = require('../database');
 const { sendWelcomeEmail } = require('../email');
+const { requireAltcha } = require('../altcha');
 
 const router = express.Router();
 
@@ -40,7 +41,7 @@ function authenticate(req, res, next) {
 }
 
 /* POST /api/auth/register */
-router.post('/register', authLimiter, async (req, res) => {
+router.post('/register', authLimiter, requireAltcha, async (req, res) => {
   try {
     const { email, password, first_name, last_name, phone } = req.body;
 
@@ -188,7 +189,7 @@ router.put('/password', authenticate, async (req, res) => {
 });
 
 /* POST /api/auth/forgot-password */
-router.post('/forgot-password', authLimiter, async (req, res) => {
+router.post('/forgot-password', authLimiter, requireAltcha, async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email requis.' });

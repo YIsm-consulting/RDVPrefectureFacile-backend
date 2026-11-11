@@ -13,6 +13,7 @@
     "@anthropic-ai/sdk": "^0.39.0",
     "@sendgrid/mail": "^8.1.0",
     "@supabase/supabase-js": "2.39.0",
+    "altcha-lib": "^2.8.0",
     "axios": "^1.6.5",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",

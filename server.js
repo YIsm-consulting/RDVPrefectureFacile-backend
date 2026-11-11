@@ -69,6 +69,14 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/api/admin',    adminRoutes);
 app.use('/api/blog',     blogRoutes);
 
+/* ── Défi anti-robot ALTCHA (inscription, mot de passe oublié) ── */
+const { newChallenge } = require('./src/altcha');
+app.get('/api/altcha', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store').json(await newChallenge());
+  } catch (err) { next(err); }
+});
+
 /* ── Health check ── */
 app.get('/health', (req, res) => {
   res.json({
