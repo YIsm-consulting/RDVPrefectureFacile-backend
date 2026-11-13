@@ -78,6 +78,9 @@ app.get('/api/altcha', async (req, res, next) => {
 });
 
 /* ── Health check ── */
+/* Plan du site (ex-fonction Vercel du site statique) : lit STATIC_SITE_DIR/blog */
+app.get('/sitemap.xml', require('./src/sitemap'));
+
 app.get('/health', (req, res) => {
   res.json({
     status:    'ok',
