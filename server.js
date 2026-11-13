@@ -106,6 +106,12 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`✅ API démarrée sur le port ${PORT}`);
   console.log(`🌍 Environnement : ${process.env.NODE_ENV}`);
+  /* SCHEDULER_DISABLED=1 : API seule, sans robot ni blog automatique (ex. pendant une migration
+     de serveur, pour ne jamais envoyer les alertes en double depuis deux machines). */
+  if (process.env.SCHEDULER_DISABLED === '1') {
+    console.log('⏸️  Robot de surveillance désactivé (SCHEDULER_DISABLED=1)');
+    return;
+  }
   scheduler.start();
   console.log(`🤖 Robot de surveillance démarré (toutes les ${process.env.SCRAPER_INTERVAL_SECONDS || 45} sec)`);
 });
