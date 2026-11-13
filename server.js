@@ -111,7 +111,9 @@ app.listen(PORT, () => {
   console.log(`🌍 Environnement : ${process.env.NODE_ENV}`);
   /* SCHEDULER_DISABLED=1 : API seule, sans robot ni blog automatique (ex. pendant une migration
      de serveur, pour ne jamais envoyer les alertes en double depuis deux machines). */
-  if (process.env.SCHEDULER_DISABLED === '1') {
+  /* Depuis la migration (2026-11-13), le robot tourne sur notre serveur : l'ancienne instance
+     Railway (variable RAILWAY_ENVIRONMENT définie par Railway) ne sert plus que l'API. */
+  if (process.env.SCHEDULER_DISABLED === '1' || process.env.RAILWAY_ENVIRONMENT) {
     console.log('⏸️  Robot de surveillance désactivé (SCHEDULER_DISABLED=1)');
     return;
   }
