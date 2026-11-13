@@ -5,6 +5,7 @@ const rateLimit   = require('express-rate-limit');
 const db          = require('../database');
 const { sendWelcomeEmail } = require('../email');
 const { requireAltcha } = require('../altcha');
+const { checkEmail } = require('../email-check');
 
 const router = express.Router();
 
@@ -50,6 +51,10 @@ router.post('/register', authLimiter, requireAltcha, async (req, res) => {
     }
     if (password.length < 8) {
       return res.status(400).json({ error: 'Mot de passe trop court (min 8 caractères).' });
+    }
+    const emailIssue = await checkEmail(email);
+    if (emailIssue) {
+      return res.status(400).json({ error: emailIssue.message, field: 'email' });
     }
 
     const existing = await db.getUserByEmail(email);
