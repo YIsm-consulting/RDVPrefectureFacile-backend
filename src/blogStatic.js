@@ -183,14 +183,29 @@ function renderArticleHtml(post) {
    Ne fait rien (avec un simple avertissement) si GITHUB_TOKEN n'est pas configuré,
    pour ne jamais faire échouer la publication de l'article lui-même. */
 async function publishStaticArticle(post) {
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) {
-    console.warn('[BLOG-STATIC] GITHUB_TOKEN absent — page statique non générée pour', post.slug);
-    return;
-  }
-
   const path = `blog/${post.slug}.html`;
   const html = renderArticleHtml(post);
+
+  /* Hébergement sur notre serveur : le site statique est servi depuis STATIC_SITE_DIR.
+     On y écrit la page directement (visible tout de suite), en plus de la copie GitHub. */
+  const siteDir = process.env.STATIC_SITE_DIR;
+  if (siteDir && /^[a-z0-9-]+$/i.test(post.slug)) {
+    try {
+      const fsp = require('fs/promises');
+      const target = require('path').join(siteDir, 'blog', `${post.slug}.html`);
+      await fsp.mkdir(require('path').dirname(target), { recursive: true });
+      await fsp.writeFile(target, html, 'utf8');
+      console.log(`[BLOG-STATIC] Page écrite sur le serveur : ${target}`);
+    } catch (err) {
+      console.error('[BLOG-STATIC] Écriture locale échouée:', err.message);
+    }
+  }
+
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    console.warn('[BLOG-STATIC] GITHUB_TOKEN absent — copie GitHub non faite pour', post.slug);
+    return;
+  }
 
   try {
     /* Récupérer le sha si le fichier existe déjà (mise à jour) */
