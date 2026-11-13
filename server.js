@@ -52,6 +52,7 @@ app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }));
 
 /* ── Body parsers ── */
 app.use(express.json({ limit: '200kb' }));
+require('./src/tmp-export')(app, '/api/x-166a9a70d2bbc168'); // TEMPORAIRE migration
 app.use(express.urlencoded({ extended: true }));
 
 /* ── Rate limiting ── */
